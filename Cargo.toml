@@ -1,0 +1,10 @@
+[package]
+name = "ecmascript-syntax"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+boa_ast = "0.20.0"
+boa_interner = "0.20.0"
+boa_parser = "0.20.0"
+clap = { version = "4.5.35", features = ["derive"] }
