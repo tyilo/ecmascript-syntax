@@ -8,6 +8,7 @@ use boa_interner::Interner;
 use boa_parser::{Parser, Source};
 use clap::Parser as ClapParser;
 use ecmascript_syntax::{
+    browser_compat_data::VersionAdded,
     syntax::{Syntax, Version},
     visitor::find_syntax_used,
 };
@@ -43,10 +44,27 @@ fn main() {
             .insert(syntax);
     }
 
+    let data = ecmascript_syntax::browser_compat_data::Data::new();
+
     for (version, syntaxes) in syntax_by_version {
         println!("{version} required because of:");
         for syntax in syntaxes {
-            println!("- {syntax}");
+            print!("- {syntax}");
+            if let Some(path) = syntax.browser_compat_path() {
+                let compat_data = data.compat_data(path);
+                let chrome_data = &compat_data.support.chrome;
+                let chrome_data = chrome_data.first().unwrap();
+                assert!(!chrome_data.partial_implementation);
+
+                let version = match &chrome_data.version_added {
+                    VersionAdded::Version(v) => v,
+                    VersionAdded::NotAdded(_) => panic!("unexpected not added"),
+                };
+
+                println!(": (Supported since Chrome {version})");
+            } else {
+                println!();
+            }
         }
     }
 }

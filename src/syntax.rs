@@ -122,6 +122,49 @@ impl Syntax {
             Syntax::RegExpFlagV => Version::ES2024,
         }
     }
+
+    pub fn browser_compat_path(self) -> Option<&'static [&'static str]> {
+        fn inner(syntax: Syntax) -> Option<&'static [&'static str]> {
+            let v: &[_] = match syntax {
+                Syntax::Class => &["classes"],
+                Syntax::ForOfLoop => &["statements", "for_of"],
+                Syntax::ArrowFunction => &["functions", "arrow_functions"],
+                Syntax::Generator => &["operators", "generator_function"],
+                Syntax::Import => &["statements", "import"],
+                Syntax::Export => &["statements", "export"],
+                Syntax::Let => &["statements", "const"], // No browser data available
+                Syntax::Const => &["statements", "const"],
+                Syntax::TemplateLiteral => &["grammar", "template_literals"],
+                Syntax::Exponentiation => &["operators", "exponentiation"],
+                Syntax::AsyncFn => &["operators", "async_function"],
+                Syntax::Await => &["operators", "await"],
+                Syntax::AsyncGenerator => &["operators", "async_generator_function"],
+                Syntax::ForAwait => &["statements", "for_await_of"],
+                Syntax::SpreadOperator => &["operators", "spread"],
+                Syntax::RestParameter => &["functions", "rest_parameters"],
+                Syntax::CatchWithoutBinding => {
+                    &["statements", "try_catch", "optional_catch_binding"]
+                }
+                Syntax::BigIntLiteral => &["builtins", "BigInt"], // No browser data for literals
+                Syntax::OptionalChaining => &["operators", "optional_chaining"],
+                Syntax::NullishCoalescingOperator => &["operators", "nullish_coalescing"],
+                Syntax::DynamicImport => &["operators", "import"],
+                Syntax::NullishCoalescingAssignment => {
+                    &["operators", "nullish_coalescing_assignment"]
+                }
+                Syntax::LogicalAndAssignment => &["operators", "logical_and_assignment"],
+                Syntax::LogicalOrAssignment => &["operators", "logical_or_assignment"],
+                Syntax::NumericSeparator => &["grammar", "numeric_separators"],
+                Syntax::ClassFieldDeclaration => &["classes", "public_class_fields"],
+                Syntax::PrivateField => &["classes", "private_class_fields"],
+                Syntax::StaticBlock => &["classes", "static_initialization_blocks"],
+                Syntax::TopLevelAwait => &["operators", "await", "top_level"],
+                Syntax::RegExpFlagS | Syntax::RegExpFlagD | Syntax::RegExpFlagV => return None,
+            };
+            Some(v)
+        }
+        inner(self)
+    }
 }
 
 impl Display for Syntax {
