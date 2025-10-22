@@ -186,6 +186,14 @@ mod test {
     }
 
     #[test]
+    fn class_decl_with_keyword_name() {
+        assert_eq!(
+            syntax_required("class of {}"),
+            BTreeSet::from_iter([Syntax::Class])
+        );
+    }
+
+    #[test]
     fn class_expr() {
         assert_eq!(
             syntax_required("var x = class {};"),

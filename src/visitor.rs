@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, ops::ControlFlow};
 use boa_ast::{
     declaration::LexicalDeclaration,
     expression::{
-        literal::{Literal, PropertyDefinition},
+        literal::{Literal, LiteralKind, PropertyDefinition},
         operator::{
             assign::AssignOp,
             binary::{ArithmeticOp, BinaryOp, LogicalOp},
@@ -99,7 +99,7 @@ impl<'a> Visitor<'a> for SyntaxVersionVisitor<'a> {
             ClassElement::FieldDefinition(_)
             | ClassElement::StaticFieldDefinition(_)
             | ClassElement::PrivateFieldDefinition(_)
-            | ClassElement::PrivateStaticFieldDefinition(_, _) => {
+            | ClassElement::PrivateStaticFieldDefinition(_) => {
                 self.syntax_found.insert(Syntax::ClassFieldDeclaration);
             }
             ClassElement::StaticBlock(_) => {
@@ -286,7 +286,7 @@ impl<'a> Visitor<'a> for SyntaxVersionVisitor<'a> {
     }
 
     fn visit_literal(&mut self, node: &'a Literal) -> ControlFlow<Self::BreakTy> {
-        if let Literal::BigInt(_) = node {
+        if let LiteralKind::BigInt(_) = node.kind() {
             self.syntax_found.insert(Syntax::BigIntLiteral);
         }
 
