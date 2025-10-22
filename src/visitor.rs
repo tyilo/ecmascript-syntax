@@ -18,7 +18,7 @@ use crate::syntax::Syntax;
 
 pub fn find_syntax_used(interner: &Interner, ast: impl VisitWith) -> BTreeSet<Syntax> {
     let mut visitor = SyntaxVersionVisitor::new(interner);
-    ast.visit_with(&mut visitor);
+    _ = ast.visit_with(&mut visitor);
     visitor.syntax_found
 }
 

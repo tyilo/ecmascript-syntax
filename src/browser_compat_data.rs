@@ -1,10 +1,12 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 use serde::Deserialize;
 use serde_with::{OneOrMany, serde_as};
 
-const DATA: &str =
+const DATA_STR: &str =
     include_str!("../browser-compat-data/node_modules/@mdn/browser-compat-data/data.json");
+
+pub static DATA: LazyLock<Data> = LazyLock::new(Data::new);
 
 #[derive(Debug, Deserialize)]
 struct BrowserCompatData {
@@ -64,8 +66,8 @@ pub struct Data {
 }
 
 impl Data {
-    pub fn new() -> Self {
-        let data: BrowserCompatData = serde_json::from_str(DATA).unwrap();
+    fn new() -> Self {
+        let data: BrowserCompatData = serde_json::from_str(DATA_STR).unwrap();
 
         fn aux(data: &JavascriptData) {
             if let Some(compat) = &data.__compat {

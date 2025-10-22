@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::PathBuf,
+    sync::LazyLock,
 };
 
 use boa_ast::scope::Scope;
@@ -8,7 +9,7 @@ use boa_interner::Interner;
 use boa_parser::{Parser, Source};
 use clap::Parser as ClapParser;
 use ecmascript_syntax::{
-    browser_compat_data::VersionAdded,
+    browser_compat_data::{self, VersionAdded},
     syntax::{Syntax, Version},
     visitor::find_syntax_used,
 };
@@ -21,6 +22,7 @@ struct Cli {
 }
 
 fn main() {
+    let data = LazyLock::force(&browser_compat_data::DATA);
     let args = Cli::parse();
 
     let source = Source::from_filepath(&args.input).unwrap();
@@ -43,8 +45,6 @@ fn main() {
             .or_default()
             .insert(syntax);
     }
-
-    let data = ecmascript_syntax::browser_compat_data::Data::new();
 
     for (version, syntaxes) in syntax_by_version {
         println!("{version} required because of:");
