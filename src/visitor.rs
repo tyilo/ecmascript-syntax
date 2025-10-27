@@ -17,7 +17,7 @@ use crate::syntax::Syntax;
 
 pub fn find_syntax_used<'a>(
     source_map: &'a SourceMap,
-    ast: impl VisitWith<SyntaxVersionVisitor<'a>>,
+    ast: &impl VisitWith<SyntaxVersionVisitor<'a>>,
 ) -> BTreeSet<Syntax> {
     let mut visitor = SyntaxVersionVisitor::new(source_map);
     ast.visit_with(&mut visitor);
@@ -50,7 +50,7 @@ impl Visit for SyntaxVersionVisitor<'_> {
         if let Some(syntax) = syntax {
             self.syntax_found.insert(syntax);
         }
-        node.visit_children_with(self)
+        node.visit_children_with(self);
     }
 
     fn visit_module_decl(&mut self, node: &ModuleDecl) {

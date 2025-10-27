@@ -54,9 +54,10 @@ impl TryFrom<bool> for NotAdded {
     type Error = &'static str;
 
     fn try_from(value: bool) -> Result<Self, Self::Error> {
-        match value {
-            false => Ok(Self),
-            true => Err("`true` value used for `version_added`"),
+        if value {
+            Err("`true` value used for `version_added`")
+        } else {
+            Ok(Self)
         }
     }
 }
@@ -67,8 +68,6 @@ pub struct Data {
 
 impl Data {
     fn new() -> Self {
-        let data: BrowserCompatData = serde_json::from_str(DATA_STR).unwrap();
-
         fn aux(data: &JavascriptData) {
             if let Some(compat) = &data.__compat {
                 let n = compat.support.chrome.len();
@@ -80,11 +79,14 @@ impl Data {
             }
         }
 
+        let data: BrowserCompatData = serde_json::from_str(DATA_STR).unwrap();
+
         aux(&data.javascript);
 
         Self { data }
     }
 
+    #[must_use]
     pub fn compat_data<'a>(&'a self, js_feature: &[&'static str]) -> &'a CompatData {
         fn aux<'a>(data: &'a JavascriptData, path: &[&'static str]) -> Option<&'a CompatData> {
             match path.split_first() {
@@ -94,7 +96,7 @@ impl Data {
         }
 
         let Some(v) = aux(&self.data.javascript, js_feature) else {
-            panic!("No compat data found for feature: {:?}", js_feature);
+            panic!("No compat data found for feature: {js_feature:?}");
         };
         v
     }

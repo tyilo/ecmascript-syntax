@@ -83,6 +83,7 @@ pub enum Syntax {
 }
 
 impl Syntax {
+    #[must_use]
     pub fn version_required(self) -> Version {
         match self {
             Syntax::Class
@@ -119,6 +120,7 @@ impl Syntax {
         }
     }
 
+    #[must_use]
     pub fn browser_compat_path(self) -> Option<&'static [&'static str]> {
         fn inner(syntax: Syntax) -> Option<&'static [&'static str]> {
             let v: &[_] = match syntax {
@@ -128,6 +130,7 @@ impl Syntax {
                 Syntax::Generator => &["operators", "generator_function"],
                 Syntax::Import => &["statements", "import"],
                 Syntax::Export => &["statements", "export"],
+                #[allow(clippy::match_same_arms, reason = "false positive")]
                 Syntax::Let => &["statements", "const"], // No browser data available
                 Syntax::Const => &["statements", "const"],
                 Syntax::TemplateLiteral => &["grammar", "template_literals"],

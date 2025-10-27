@@ -1,3 +1,5 @@
+#![deny(clippy::pedantic)]
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::PathBuf,
@@ -15,7 +17,8 @@ use swc_common::{
     errors::{ColorConfig, Handler},
     sync::Lrc,
 };
-use swc_ecma_parser::{StringInput, lexer::Lexer};
+use swc_core::ecma::visit::swc_ecma_ast::EsVersion;
+use swc_ecma_parser::{EsSyntax, StringInput, lexer::Lexer};
 
 #[derive(ClapParser)]
 struct Cli {
@@ -34,8 +37,8 @@ fn main() {
         Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(source_map.clone()));
     let source_file = source_map.load_file(&args.input).unwrap();
     let lexer = Lexer::new(
-        swc_ecma_parser::Syntax::Es(Default::default()),
-        Default::default(),
+        swc_ecma_parser::Syntax::Es(EsSyntax::default()),
+        EsVersion::default(),
         StringInput::from(&*source_file),
         None,
     );
@@ -55,7 +58,7 @@ fn main() {
         println!("{module:#?}");
     }
 
-    let syntax_used = find_syntax_used(&source_map, module);
+    let syntax_used = find_syntax_used(&source_map, &module);
 
     let mut syntax_by_version: BTreeMap<Version, BTreeSet<Syntax>> = BTreeMap::new();
     for syntax in syntax_used {
@@ -102,8 +105,8 @@ mod test {
         let source_file =
             source_map.new_source_file(FileName::Real("test.js".into()).into(), source);
         let lexer = Lexer::new(
-            swc_ecma_parser::Syntax::Es(Default::default()),
-            Default::default(),
+            swc_ecma_parser::Syntax::Es(EsSyntax::default()),
+            EsVersion::default(),
             StringInput::from(&*source_file),
             None,
         );
@@ -121,7 +124,7 @@ mod test {
 
         //dbg!(&module);
 
-        find_syntax_used(&source_map, module)
+        find_syntax_used(&source_map, &module)
     }
 
     #[test]
