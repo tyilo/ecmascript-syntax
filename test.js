@@ -27,6 +27,9 @@ function f5(...rest) {
 const s = `${1 + 1}`;
 const n = 2 ** 3;
 const b = 10000n;
+const sep1 = 1_000_000;
+const sep2 = 3_3_3n;
+const sep3 = 1_2.2_3;
 const l = [...[1, 2, 3]];
 const r1 = /a/s;
 const r2 = /a/d;

@@ -86,13 +86,16 @@ impl Data {
     }
 
     pub fn compat_data<'a>(&'a self, js_feature: &[&'static str]) -> &'a CompatData {
-        fn aux<'a>(data: &'a JavascriptData, path: &[&'static str]) -> &'a CompatData {
+        fn aux<'a>(data: &'a JavascriptData, path: &[&'static str]) -> Option<&'a CompatData> {
             match path.split_first() {
-                None => data.__compat.as_ref().unwrap(),
-                Some((first, rest)) => aux(data.path.get(*first).unwrap(), rest),
+                None => data.__compat.as_ref(),
+                Some((first, rest)) => Some(aux(data.path.get(*first)?, rest)?),
             }
         }
 
-        aux(&self.data.javascript, js_feature)
+        let Some(v) = aux(&self.data.javascript, js_feature) else {
+            panic!("No compat data found for feature: {:?}", js_feature);
+        };
+        v
     }
 }

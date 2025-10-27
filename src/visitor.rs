@@ -1,307 +1,258 @@
-use std::{collections::BTreeSet, ops::ControlFlow};
+use std::collections::BTreeSet;
 
-use boa_ast::{
-    declaration::LexicalDeclaration,
-    expression::{
-        literal::{Literal, LiteralKind, PropertyDefinition},
-        operator::{
-            assign::AssignOp,
-            binary::{ArithmeticOp, BinaryOp, LogicalOp},
+use swc_common::{SourceMap, Spanned};
+use swc_core::ecma::{
+    self,
+    visit::{
+        Visit, VisitWith,
+        swc_ecma_ast::{
+            ArrowExpr, AssignOp, AwaitExpr, BigInt, BinaryOp, Callee, CatchClause, ClassDecl,
+            ClassExpr, ClassMember, ExprOrSpread, ForOfStmt, Function, Lit, ModuleDecl,
+            OptChainExpr, Param, Pat, PrivateProp, Regex, SpreadElement, VarDeclKind,
         },
     },
-    function::ClassElement,
-    visitor::{VisitWith, Visitor},
 };
-use boa_interner::Interner;
 
 use crate::syntax::Syntax;
 
-pub fn find_syntax_used(interner: &Interner, ast: impl VisitWith) -> BTreeSet<Syntax> {
-    let mut visitor = SyntaxVersionVisitor::new(interner);
-    _ = ast.visit_with(&mut visitor);
+pub fn find_syntax_used<'a>(
+    source_map: &'a SourceMap,
+    ast: impl VisitWith<SyntaxVersionVisitor<'a>>,
+) -> BTreeSet<Syntax> {
+    let mut visitor = SyntaxVersionVisitor::new(source_map);
+    ast.visit_with(&mut visitor);
     visitor.syntax_found
 }
 
-#[derive(Debug)]
-struct SyntaxVersionVisitor<'a> {
-    interner: &'a Interner,
+pub struct SyntaxVersionVisitor<'a> {
+    source_map: &'a SourceMap,
     syntax_found: BTreeSet<Syntax>,
     inside_fn: bool,
 }
 
 impl<'a> SyntaxVersionVisitor<'a> {
-    fn new(interner: &'a Interner) -> Self {
+    fn new(source_map: &'a SourceMap) -> Self {
         Self {
-            interner,
+            source_map,
             syntax_found: BTreeSet::new(),
             inside_fn: false,
         }
     }
 }
 
-impl<'a> Visitor<'a> for SyntaxVersionVisitor<'a> {
-    type BreakTy = ();
-
-    fn visit_lexical_declaration(
-        &mut self,
-        node: &'a LexicalDeclaration,
-    ) -> ControlFlow<Self::BreakTy> {
+impl Visit for SyntaxVersionVisitor<'_> {
+    fn visit_var_decl_kind(&mut self, node: &VarDeclKind) {
         let syntax = match node {
-            LexicalDeclaration::Const(_) => Syntax::Const,
-            LexicalDeclaration::Let(_) => Syntax::Let,
+            VarDeclKind::Var => None,
+            VarDeclKind::Let => Some(Syntax::Let),
+            VarDeclKind::Const => Some(Syntax::Const),
         };
-        self.syntax_found.insert(syntax);
-        node.visit_with(self)
+        if let Some(syntax) = syntax {
+            self.syntax_found.insert(syntax);
+        }
+        node.visit_children_with(self)
     }
 
-    fn visit_import_declaration(
-        &mut self,
-        node: &'a boa_ast::declaration::ImportDeclaration,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::Import);
-        node.visit_with(self)
-    }
-
-    fn visit_import_call(
-        &mut self,
-        node: &'a boa_ast::expression::ImportCall,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::DynamicImport);
-        node.visit_with(self)
-    }
-
-    fn visit_export_declaration(
-        &mut self,
-        node: &'a boa_ast::declaration::ExportDeclaration,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::Export);
-        node.visit_with(self)
-    }
-
-    fn visit_class_declaration(
-        &mut self,
-        node: &'a boa_ast::function::ClassDeclaration,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::Class);
-        node.visit_with(self)
-    }
-
-    fn visit_class_expression(
-        &mut self,
-        node: &'a boa_ast::function::ClassExpression,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::Class);
-        node.visit_with(self)
-    }
-
-    fn visit_class_element(&mut self, node: &'a ClassElement) -> ControlFlow<Self::BreakTy> {
+    fn visit_module_decl(&mut self, node: &ModuleDecl) {
         match node {
-            ClassElement::FieldDefinition(_)
-            | ClassElement::StaticFieldDefinition(_)
-            | ClassElement::PrivateFieldDefinition(_)
-            | ClassElement::PrivateStaticFieldDefinition(_) => {
+            ModuleDecl::Import(_) => {
+                self.syntax_found.insert(Syntax::Import);
+            }
+            ModuleDecl::ExportDecl(_)
+            | ModuleDecl::ExportNamed(_)
+            | ModuleDecl::ExportDefaultDecl(_)
+            | ModuleDecl::ExportDefaultExpr(_)
+            | ModuleDecl::ExportAll(_) => {
+                self.syntax_found.insert(Syntax::Export);
+            }
+            ModuleDecl::TsImportEquals(_)
+            | ModuleDecl::TsExportAssignment(_)
+            | ModuleDecl::TsNamespaceExport(_) => panic!("TypeScript syntax not supported"),
+        }
+        node.visit_children_with(self);
+    }
+
+    fn visit_callee(&mut self, node: &Callee) {
+        match node {
+            Callee::Import(_) => {
+                self.syntax_found.insert(Syntax::DynamicImport);
+            }
+            Callee::Super(_) | Callee::Expr(_) => {}
+        }
+        node.visit_children_with(self);
+    }
+
+    fn visit_class_decl(&mut self, node: &ClassDecl) {
+        self.syntax_found.insert(Syntax::Class);
+        node.visit_children_with(self);
+    }
+
+    fn visit_class_expr(&mut self, node: &ClassExpr) {
+        self.syntax_found.insert(Syntax::Class);
+        node.visit_children_with(self);
+    }
+
+    fn visit_class_member(&mut self, node: &ClassMember) {
+        match node {
+            ClassMember::ClassProp(_) | ClassMember::PrivateProp(_) => {
                 self.syntax_found.insert(Syntax::ClassFieldDeclaration);
             }
-            ClassElement::StaticBlock(_) => {
+            ClassMember::StaticBlock(_) => {
                 self.syntax_found.insert(Syntax::StaticBlock);
             }
-            ClassElement::MethodDefinition(_) => {}
+            ClassMember::PrivateMethod(_) => {
+                self.syntax_found.insert(Syntax::PrivateField);
+            }
+            ClassMember::Constructor(_)
+            | ClassMember::Method(_)
+            | ClassMember::Empty(_)
+            | ClassMember::AutoAccessor(_) => {}
+            ClassMember::TsIndexSignature(_) => panic!("TypeScript syntax not supported"),
         }
-        node.visit_with(self)
+
+        node.visit_children_with(self);
     }
 
-    fn visit_private_name(
-        &mut self,
-        node: &'a boa_ast::function::PrivateName,
-    ) -> ControlFlow<Self::BreakTy> {
+    fn visit_private_prop(&mut self, node: &PrivateProp) {
         self.syntax_found.insert(Syntax::PrivateField);
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_function_body(
-        &mut self,
-        node: &'a boa_ast::function::FunctionBody,
-    ) -> ControlFlow<Self::BreakTy> {
+    fn visit_function(&mut self, node: &Function) {
+        match (node.is_async, node.is_generator) {
+            (true, true) => {
+                self.syntax_found.insert(Syntax::AsyncGenerator);
+            }
+            (true, false) => {
+                self.syntax_found.insert(Syntax::AsyncFn);
+            }
+            (false, true) => {
+                self.syntax_found.insert(Syntax::Generator);
+            }
+            (false, false) => {}
+        }
+
         let already_inside = self.inside_fn;
         self.inside_fn = true;
-        let res = node.visit_with(self);
+        node.visit_children_with(self);
         self.inside_fn = already_inside;
-        res
     }
 
-    fn visit_for_of_loop(
-        &mut self,
-        node: &'a boa_ast::statement::ForOfLoop,
-    ) -> ControlFlow<Self::BreakTy> {
-        if node.r#await() {
-            self.syntax_found.insert(Syntax::ForAwait);
-        } else {
-            self.syntax_found.insert(Syntax::ForOfLoop);
-        }
-        node.visit_with(self)
-    }
-
-    fn visit_generator_declaration(
-        &mut self,
-        node: &'a boa_ast::function::GeneratorDeclaration,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::Generator);
-        node.visit_with(self)
-    }
-
-    fn visit_generator_expression(
-        &mut self,
-        node: &'a boa_ast::function::GeneratorExpression,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::Generator);
-        node.visit_with(self)
-    }
-
-    fn visit_arrow_function(
-        &mut self,
-        node: &'a boa_ast::function::ArrowFunction,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::ArrowFunction);
-        node.visit_with(self)
-    }
-
-    fn visit_async_function_declaration(
-        &mut self,
-        node: &'a boa_ast::function::AsyncFunctionDeclaration,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::AsyncFn);
-        node.visit_with(self)
-    }
-
-    fn visit_async_function_expression(
-        &mut self,
-        node: &'a boa_ast::function::AsyncFunctionExpression,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::AsyncFn);
-        node.visit_with(self)
-    }
-
-    fn visit_async_arrow_function(
-        &mut self,
-        node: &'a boa_ast::function::AsyncArrowFunction,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::AsyncFn);
-        node.visit_with(self)
-    }
-
-    fn visit_async_generator_declaration(
-        &mut self,
-        node: &'a boa_ast::function::AsyncGeneratorDeclaration,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::AsyncGenerator);
-        node.visit_with(self)
-    }
-
-    fn visit_async_generator_expression(
-        &mut self,
-        node: &'a boa_ast::function::AsyncGeneratorExpression,
-    ) -> ControlFlow<Self::BreakTy> {
-        self.syntax_found.insert(Syntax::AsyncGenerator);
-        node.visit_with(self)
-    }
-
-    fn visit_await(&mut self, node: &'a boa_ast::expression::Await) -> ControlFlow<Self::BreakTy> {
+    fn visit_await_expr(&mut self, node: &AwaitExpr) {
         if self.inside_fn {
             self.syntax_found.insert(Syntax::Await);
         } else {
             self.syntax_found.insert(Syntax::TopLevelAwait);
         }
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_optional(
-        &mut self,
-        node: &'a boa_ast::expression::Optional,
-    ) -> std::ops::ControlFlow<Self::BreakTy> {
+    fn visit_for_of_stmt(&mut self, node: &ForOfStmt) {
+        if node.is_await {
+            self.syntax_found.insert(Syntax::ForAwait);
+        } else {
+            self.syntax_found.insert(Syntax::ForOfLoop);
+        }
+        node.visit_children_with(self);
+    }
+
+    fn visit_arrow_expr(&mut self, node: &ArrowExpr) {
+        self.syntax_found.insert(Syntax::ArrowFunction);
+        if node.is_async {
+            self.syntax_found.insert(Syntax::AsyncFn);
+        }
+        node.visit_children_with(self);
+    }
+
+    fn visit_opt_chain_expr(&mut self, node: &OptChainExpr) {
         self.syntax_found.insert(Syntax::OptionalChaining);
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_binary(
-        &mut self,
-        node: &'a boa_ast::expression::operator::Binary,
-    ) -> ControlFlow<Self::BreakTy> {
-        match node.op() {
-            BinaryOp::Logical(LogicalOp::Coalesce) => {
-                self.syntax_found.insert(Syntax::NullishCoalescingOperator);
-            }
-            BinaryOp::Arithmetic(ArithmeticOp::Exp) => {
+    fn visit_binary_op(&mut self, node: &BinaryOp) {
+        match node {
+            BinaryOp::Exp => {
                 self.syntax_found.insert(Syntax::Exponentiation);
             }
-            _ => {}
+            BinaryOp::NullishCoalescing => {
+                self.syntax_found.insert(Syntax::NullishCoalescingOperator);
+            }
+            BinaryOp::EqEq
+            | BinaryOp::NotEq
+            | BinaryOp::EqEqEq
+            | BinaryOp::NotEqEq
+            | BinaryOp::Lt
+            | BinaryOp::LtEq
+            | BinaryOp::Gt
+            | BinaryOp::GtEq
+            | BinaryOp::LShift
+            | BinaryOp::RShift
+            | BinaryOp::ZeroFillRShift
+            | BinaryOp::Add
+            | BinaryOp::Sub
+            | BinaryOp::Mul
+            | BinaryOp::Div
+            | BinaryOp::Mod
+            | BinaryOp::BitOr
+            | BinaryOp::BitXor
+            | BinaryOp::BitAnd
+            | BinaryOp::LogicalOr
+            | BinaryOp::LogicalAnd
+            | BinaryOp::In
+            | BinaryOp::InstanceOf => {}
         }
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_assign(
-        &mut self,
-        node: &'a boa_ast::expression::operator::Assign,
-    ) -> ControlFlow<Self::BreakTy> {
-        fn syntax(node: &boa_ast::expression::operator::Assign) -> Option<Syntax> {
-            let v = match node.op() {
-                AssignOp::Coalesce => Syntax::NullishCoalescingAssignment,
-                AssignOp::BoolAnd => Syntax::LogicalAndAssignment,
-                AssignOp::BoolOr => Syntax::LogicalOrAssignment,
-                AssignOp::Exp => Syntax::Exponentiation,
-                _ => return None,
-            };
-            Some(v)
+    fn visit_assign_op(&mut self, node: &AssignOp) {
+        match node {
+            AssignOp::ExpAssign => {
+                self.syntax_found.insert(Syntax::Exponentiation);
+            }
+            AssignOp::AndAssign => {
+                self.syntax_found.insert(Syntax::LogicalAndAssignment);
+            }
+            AssignOp::OrAssign => {
+                self.syntax_found.insert(Syntax::LogicalOrAssignment);
+            }
+            AssignOp::NullishAssign => {
+                self.syntax_found
+                    .insert(Syntax::NullishCoalescingAssignment);
+            }
+            AssignOp::Assign
+            | AssignOp::AddAssign
+            | AssignOp::SubAssign
+            | AssignOp::MulAssign
+            | AssignOp::DivAssign
+            | AssignOp::ModAssign
+            | AssignOp::LShiftAssign
+            | AssignOp::RShiftAssign
+            | AssignOp::ZeroFillRShiftAssign
+            | AssignOp::BitOrAssign
+            | AssignOp::BitXorAssign
+            | AssignOp::BitAndAssign => {}
         }
-        if let Some(syntax) = syntax(node) {
-            self.syntax_found.insert(syntax);
-        }
-
-        node.visit_with(self)
     }
 
-    fn visit_spread(
-        &mut self,
-        node: &'a boa_ast::expression::Spread,
-    ) -> ControlFlow<Self::BreakTy> {
+    fn visit_spread_element(&mut self, node: &SpreadElement) {
         self.syntax_found.insert(Syntax::SpreadOperator);
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_property_definition(
-        &mut self,
-        node: &'a PropertyDefinition,
-    ) -> ControlFlow<Self::BreakTy> {
-        if let PropertyDefinition::SpreadObject(_) = node {
+    fn visit_expr_or_spread(&mut self, node: &ExprOrSpread) {
+        if node.spread.is_some() {
             self.syntax_found.insert(Syntax::SpreadOperator);
         }
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_template_literal(
-        &mut self,
-        node: &'a boa_ast::expression::literal::TemplateLiteral,
-    ) -> ControlFlow<Self::BreakTy> {
+    fn visit_tpl(&mut self, node: &ecma::visit::swc_ecma_ast::Tpl) {
         self.syntax_found.insert(Syntax::TemplateLiteral);
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_literal(&mut self, node: &'a Literal) -> ControlFlow<Self::BreakTy> {
-        if let LiteralKind::BigInt(_) = node.kind() {
-            self.syntax_found.insert(Syntax::BigIntLiteral);
-        }
-
-        node.visit_with(self)
-    }
-
-    fn visit_reg_exp_literal(
-        &mut self,
-        node: &'a boa_ast::expression::RegExpLiteral,
-    ) -> ControlFlow<Self::BreakTy> {
-        let flags = self.interner.resolve_expect(node.flags()).utf16();
-        for c in flags {
-            let Some(c) = char::from_u32(u32::from(*c)) else {
-                continue;
-            };
+    fn visit_regex(&mut self, node: &Regex) {
+        for c in node.flags.chars() {
             let syntax = match c {
                 's' => Syntax::RegExpFlagS,
                 'd' => Syntax::RegExpFlagD,
@@ -310,25 +261,42 @@ impl<'a> Visitor<'a> for SyntaxVersionVisitor<'a> {
             };
             self.syntax_found.insert(syntax);
         }
-
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_catch(&mut self, node: &'a boa_ast::statement::Catch) -> ControlFlow<Self::BreakTy> {
-        if node.parameter().is_none() {
+    fn visit_catch_clause(&mut self, node: &CatchClause) {
+        if node.param.is_none() {
             self.syntax_found.insert(Syntax::CatchWithoutBinding);
         }
-
-        node.visit_with(self)
+        node.visit_children_with(self);
     }
 
-    fn visit_formal_parameter_list(
-        &mut self,
-        node: &'a boa_ast::function::FormalParameterList,
-    ) -> ControlFlow<Self::BreakTy> {
-        if node.has_rest_parameter() {
+    fn visit_params(&mut self, node: &[Param]) {
+        if node.iter().any(|param| matches!(param.pat, Pat::Rest(..))) {
             self.syntax_found.insert(Syntax::RestParameter);
         }
-        node.visit_with(self)
+        node.visit_children_with(self);
+    }
+
+    fn visit_lit(&mut self, node: &Lit) {
+        match node {
+            Lit::Num(_) | Lit::BigInt(_) => {
+                let contains_underscore = self
+                    .source_map
+                    .with_snippet_of_span(node.span(), |s| s.contains('_'))
+                    .unwrap();
+                if contains_underscore {
+                    self.syntax_found.insert(Syntax::NumericSeparator);
+                }
+            }
+            Lit::Str(_) | Lit::Bool(_) | Lit::Null(_) | Lit::Regex(_) | Lit::JSXText(_) => {}
+        }
+
+        node.visit_children_with(self);
+    }
+
+    fn visit_big_int(&mut self, node: &BigInt) {
+        self.syntax_found.insert(Syntax::BigIntLiteral);
+        node.visit_children_with(self);
     }
 }

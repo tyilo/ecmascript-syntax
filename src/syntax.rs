@@ -69,10 +69,6 @@ pub enum Syntax {
     NullishCoalescingAssignment,
     LogicalAndAssignment,
     LogicalOrAssignment,
-
-    // boa_ast doesn't save enough information to determine if a number literal
-    // contains an underscore
-    #[allow(dead_code)]
     NumericSeparator,
 
     // ES2022
@@ -157,7 +153,7 @@ impl Syntax {
                 Syntax::NumericSeparator => &["grammar", "numeric_separators"],
                 Syntax::ClassFieldDeclaration => &["classes", "public_class_fields"],
                 Syntax::PrivateField => &["classes", "private_class_fields"],
-                Syntax::StaticBlock => &["classes", "static_initialization_blocks"],
+                Syntax::StaticBlock => &["classes", "static", "initialization_blocks"],
                 Syntax::TopLevelAwait => &["operators", "await", "top_level"],
                 Syntax::RegExpFlagS | Syntax::RegExpFlagD | Syntax::RegExpFlagV => return None,
             };

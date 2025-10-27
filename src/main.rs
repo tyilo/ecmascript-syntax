@@ -4,15 +4,18 @@ use std::{
     sync::LazyLock,
 };
 
-use boa_ast::scope::Scope;
-use boa_interner::Interner;
-use boa_parser::{Parser, Source};
 use clap::Parser as ClapParser;
 use ecmascript_syntax::{
     browser_compat_data::{self, VersionAdded},
     syntax::{Syntax, Version},
     visitor::find_syntax_used,
 };
+use swc_common::{
+    SourceMap,
+    errors::{ColorConfig, Handler},
+    sync::Lrc,
+};
+use swc_ecma_parser::{StringInput, lexer::Lexer};
 
 #[derive(ClapParser)]
 struct Cli {
@@ -25,18 +28,34 @@ fn main() {
     let data = LazyLock::force(&browser_compat_data::DATA);
     let args = Cli::parse();
 
-    let source = Source::from_filepath(&args.input).unwrap();
-    let mut interner = Interner::new();
-    let mut parser = Parser::new(source);
-    let script = parser
-        .parse_module(&Scope::new_global(), &mut interner)
+    let source_map = Lrc::<SourceMap>::default();
+
+    let handler =
+        Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(source_map.clone()));
+    let source_file = source_map.load_file(&args.input).unwrap();
+    let lexer = Lexer::new(
+        swc_ecma_parser::Syntax::Es(Default::default()),
+        Default::default(),
+        StringInput::from(&*source_file),
+        None,
+    );
+
+    let mut parser = swc_ecma_parser::Parser::new_from(lexer);
+
+    for e in parser.take_errors() {
+        e.into_diagnostic(&handler).emit();
+    }
+
+    let module = parser
+        .parse_module()
+        .map_err(|e| e.into_diagnostic(&handler).emit())
         .unwrap();
 
     if args.ast {
-        eprintln!("{script:#?}");
+        println!("{module:#?}");
     }
 
-    let syntax_used = find_syntax_used(&interner, script);
+    let syntax_used = find_syntax_used(&source_map, module);
 
     let mut syntax_by_version: BTreeMap<Version, BTreeSet<Syntax>> = BTreeMap::new();
     for syntax in syntax_used {
@@ -71,17 +90,38 @@ fn main() {
 
 #[cfg(test)]
 mod test {
+    use swc_common::FileName;
+
     use super::*;
 
     fn syntax_required(source: &'static str) -> BTreeSet<Syntax> {
-        let source = Source::from_bytes(source.as_bytes());
-        let mut interner = Interner::new();
-        let mut parser = Parser::new(source);
-        let script = parser
-            .parse_module(&Scope::new_global(), &mut interner)
+        let source_map = Lrc::<SourceMap>::default();
+
+        let handler =
+            Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(source_map.clone()));
+        let source_file =
+            source_map.new_source_file(FileName::Real("test.js".into()).into(), source);
+        let lexer = Lexer::new(
+            swc_ecma_parser::Syntax::Es(Default::default()),
+            Default::default(),
+            StringInput::from(&*source_file),
+            None,
+        );
+
+        let mut parser = swc_ecma_parser::Parser::new_from(lexer);
+
+        for e in parser.take_errors() {
+            e.into_diagnostic(&handler).emit();
+        }
+
+        let module = parser
+            .parse_module()
+            .map_err(|e| e.into_diagnostic(&handler).emit())
             .unwrap();
-        // dbg!(&script);
-        find_syntax_used(&interner, script)
+
+        //dbg!(&module);
+
+        find_syntax_used(&source_map, module)
     }
 
     #[test]
@@ -258,6 +298,30 @@ mod test {
     }
 
     #[test]
+    fn numeric_separator_int() {
+        assert_eq!(
+            syntax_required("var x = 1_000_000;"),
+            BTreeSet::from_iter([Syntax::NumericSeparator])
+        );
+    }
+
+    #[test]
+    fn numeric_separator_float() {
+        assert_eq!(
+            syntax_required("var x = 1.2_3;"),
+            BTreeSet::from_iter([Syntax::NumericSeparator])
+        );
+    }
+
+    #[test]
+    fn numeric_separator_bigint() {
+        assert_eq!(
+            syntax_required("var x = 1_2_3n;"),
+            BTreeSet::from_iter([Syntax::BigIntLiteral, Syntax::NumericSeparator])
+        );
+    }
+
+    #[test]
     fn optional_chain() {
         assert_eq!(
             syntax_required("var x = a?.b;"),
@@ -406,7 +470,7 @@ mod test {
     fn async_arrow_fn() {
         assert_eq!(
             syntax_required("var f = async () => {};"),
-            BTreeSet::from_iter([Syntax::AsyncFn])
+            BTreeSet::from_iter([Syntax::ArrowFunction, Syntax::AsyncFn])
         );
     }
 
@@ -566,6 +630,7 @@ mod test {
                 Syntax::RegExpFlagS,
                 Syntax::CatchWithoutBinding,
                 Syntax::BigIntLiteral,
+                Syntax::NumericSeparator,
                 Syntax::OptionalChaining,
                 Syntax::NullishCoalescingOperator,
                 Syntax::DynamicImport,
