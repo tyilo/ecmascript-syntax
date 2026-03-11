@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "@mdn/browser-compat-data":"^7.1.14"
+    "@mdn/browser-compat-data":"7.3.6"
   }
 }
