@@ -51,4 +51,6 @@ ES2022 required because of:
 - RegExp literal flag /d
 ES2024 required because of:
 - RegExp literal flag /v
+ES2025 required because of:
+- RegExp inline modifier ((?i:...)): (Supported since Chrome 125)
 ```
