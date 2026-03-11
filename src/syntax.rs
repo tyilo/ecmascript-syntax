@@ -165,7 +165,7 @@ impl Syntax {
                 Syntax::StaticBlock => &["classes", "static", "initialization_blocks"],
                 Syntax::TopLevelAwait => &["operators", "await", "top_level"],
                 Syntax::RegExpFlagS | Syntax::RegExpFlagD | Syntax::RegExpFlagV => return None,
-                Syntax::RegExpInlineModifier => todo!(),
+                Syntax::RegExpInlineModifier => &["regular_expressions", "modifier"],
             };
             Some(v)
         }
