@@ -11,6 +11,7 @@ pub enum Version {
     ES2021,
     ES2022,
     ES2024,
+    ES2025,
 }
 
 impl Display for Version {
@@ -25,6 +26,7 @@ impl Display for Version {
             Version::ES2021 => write!(f, "ES2021"),
             Version::ES2022 => write!(f, "ES2022"),
             Version::ES2024 => write!(f, "ES2024"),
+            Version::ES2025 => write!(f, "ES2025"),
         }
     }
 }
@@ -80,6 +82,9 @@ pub enum Syntax {
 
     // ES2024
     RegExpFlagV,
+
+    // ES2025
+    RegExpInlineModifier,
 }
 
 impl Syntax {
@@ -117,6 +122,7 @@ impl Syntax {
             | Syntax::TopLevelAwait
             | Syntax::RegExpFlagD => Version::ES2022,
             Syntax::RegExpFlagV => Version::ES2024,
+            Syntax::RegExpInlineModifier => Version::ES2025,
         }
     }
 
@@ -159,6 +165,7 @@ impl Syntax {
                 Syntax::StaticBlock => &["classes", "static", "initialization_blocks"],
                 Syntax::TopLevelAwait => &["operators", "await", "top_level"],
                 Syntax::RegExpFlagS | Syntax::RegExpFlagD | Syntax::RegExpFlagV => return None,
+                Syntax::RegExpInlineModifier => todo!(),
             };
             Some(v)
         }
@@ -204,6 +211,7 @@ impl Display for Syntax {
             Syntax::TopLevelAwait => write!(f, "Top-level await expression"),
             Syntax::RegExpFlagD => write!(f, "RegExp literal flag /d"),
             Syntax::RegExpFlagV => write!(f, "RegExp literal flag /v"),
+            Syntax::RegExpInlineModifier => write!(f, "RegExp inline modifier ((?i:...))"),
         }
     }
 }

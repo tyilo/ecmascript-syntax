@@ -414,6 +414,38 @@ mod test {
     }
 
     #[test]
+    fn regexp_no_modifiers() {
+        assert_eq!(
+            syntax_required("var x = /(?:foo)/;"),
+            BTreeSet::from_iter([])
+        );
+    }
+
+    #[test]
+    fn regexp_ignore_modifier() {
+        assert_eq!(
+            syntax_required("var x = /(?i:foo)/;"),
+            BTreeSet::from_iter([Syntax::RegExpInlineModifier])
+        );
+    }
+
+    #[test]
+    fn regexp_nested_modifier() {
+        assert_eq!(
+            syntax_required("var x = /(?:(?:(?i:foo)))/;"),
+            BTreeSet::from_iter([Syntax::RegExpInlineModifier])
+        );
+    }
+
+    #[test]
+    fn regexp_disable_ignore_modifier() {
+        assert_eq!(
+            syntax_required("var x = /(?-i:foo)/;"),
+            BTreeSet::from_iter([Syntax::RegExpInlineModifier])
+        );
+    }
+
+    #[test]
     fn only_rest_param() {
         assert_eq!(
             syntax_required("function f(...a) {}"),
@@ -646,6 +678,7 @@ mod test {
                 Syntax::TopLevelAwait,
                 Syntax::RegExpFlagD,
                 Syntax::RegExpFlagV,
+                Syntax::RegExpInlineModifier,
             ])
         );
     }

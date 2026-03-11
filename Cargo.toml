@@ -11,3 +11,5 @@ serde_with = "3.12.0"
 swc_common = { version = "19.0.0", features = ["tty-emitter"] }
 swc_core = { version = "58.0.4", features = ["ecma_visit"] }
 swc_ecma_parser = { version = "35.0.0", default-features = false }
+swc_ecma_regexp = "0.8.0"
+swc_ecma_regexp_visit = { version = "0.8.0", default-features = false }

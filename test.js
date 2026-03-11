@@ -34,6 +34,7 @@ const l = [...[1, 2, 3]];
 const r1 = /a/s;
 const r2 = /a/d;
 const r3 = /a/v;
+const r4 = /(?i:foo)/;
 
 const x = l?.[0]?.a ?? s;
 

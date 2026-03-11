@@ -252,6 +252,17 @@ impl Visit for SyntaxVersionVisitor<'_> {
     }
 
     fn visit_regex(&mut self, node: &Regex) {
+        let parser = swc_ecma_regexp::LiteralParser::new(
+            node.exp.as_str(),
+            Some(node.flags.as_str()),
+            swc_ecma_regexp::Options {
+                pattern_span_offset: 0,
+                flags_span_offset: 0,
+            },
+        );
+        let pattern = parser.parse().unwrap();
+        swc_ecma_regexp_visit::VisitWith::visit_with(&pattern, self);
+
         for c in node.flags.chars() {
             let syntax = match c {
                 's' => Syntax::RegExpFlagS,
@@ -298,5 +309,17 @@ impl Visit for SyntaxVersionVisitor<'_> {
     fn visit_big_int(&mut self, node: &BigInt) {
         self.syntax_found.insert(Syntax::BigIntLiteral);
         node.visit_children_with(self);
+    }
+}
+
+impl swc_ecma_regexp_visit::Visit for SyntaxVersionVisitor<'_> {
+    fn visit_ignore_group(&mut self, node: &swc_ecma_regexp::ast::IgnoreGroup) {
+        if let Some(modifiers) = &node.modifiers
+            && !(modifiers.enabling.is_empty() && modifiers.disabling.is_empty())
+        {
+            self.syntax_found.insert(Syntax::RegExpInlineModifier);
+        }
+
+        swc_ecma_regexp_visit::VisitWith::visit_children_with(node, self);
     }
 }
