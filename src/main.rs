@@ -96,6 +96,7 @@ fn minimum_chrome_version(syntax: Syntax) -> Option<&'static str> {
 
 #[cfg(test)]
 mod test {
+    use strum::VariantArray;
     use swc_common::FileName;
 
     use super::*;
@@ -644,53 +645,17 @@ mod test {
         );
     }
 
-    const ALL_SYNTAX: &[Syntax] = &[
-        Syntax::Class,
-        Syntax::ForOfLoop,
-        Syntax::ArrowFunction,
-        Syntax::Generator,
-        Syntax::Import,
-        Syntax::Export,
-        Syntax::Let,
-        Syntax::Const,
-        Syntax::TemplateLiteral,
-        Syntax::Exponentiation,
-        Syntax::AsyncFn,
-        Syntax::Await,
-        Syntax::AsyncGenerator,
-        Syntax::ForAwait,
-        Syntax::SpreadOperator,
-        Syntax::RestParameter,
-        Syntax::RegExpFlagS,
-        Syntax::CatchWithoutBinding,
-        Syntax::BigIntLiteral,
-        Syntax::NumericSeparator,
-        Syntax::OptionalChaining,
-        Syntax::NullishCoalescingOperator,
-        Syntax::DynamicImport,
-        Syntax::NullishCoalescingAssignment,
-        Syntax::LogicalAndAssignment,
-        Syntax::LogicalOrAssignment,
-        Syntax::ClassFieldDeclaration,
-        Syntax::PrivateField,
-        Syntax::StaticBlock,
-        Syntax::TopLevelAwait,
-        Syntax::RegExpFlagD,
-        Syntax::RegExpFlagV,
-        Syntax::RegExpInlineModifier,
-    ];
-
     #[test]
     fn all_syntax() {
         assert_eq!(
             syntax_required(include_str!("../test.js")),
-            ALL_SYNTAX.iter().copied().collect()
+            Syntax::VARIANTS.iter().copied().collect(),
         );
     }
 
     #[test]
     fn compat_data() {
-        for &syntax in ALL_SYNTAX {
+        for &syntax in Syntax::VARIANTS {
             _ = minimum_chrome_version(syntax);
         }
     }

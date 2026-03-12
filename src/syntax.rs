@@ -1,6 +1,9 @@
 use std::fmt::Display;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+use derive_more::Display;
+use strum::VariantArray;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Display)]
 pub enum Version {
     ES2015,
     ES2016,
@@ -14,24 +17,7 @@ pub enum Version {
     ES2025,
 }
 
-impl Display for Version {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Version::ES2015 => write!(f, "ES2015"),
-            Version::ES2016 => write!(f, "ES2016"),
-            Version::ES2017 => write!(f, "ES2017"),
-            Version::ES2018 => write!(f, "ES2018"),
-            Version::ES2019 => write!(f, "ES2019"),
-            Version::ES2020 => write!(f, "ES2020"),
-            Version::ES2021 => write!(f, "ES2021"),
-            Version::ES2022 => write!(f, "ES2022"),
-            Version::ES2024 => write!(f, "ES2024"),
-            Version::ES2025 => write!(f, "ES2025"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, VariantArray)]
 pub enum Syntax {
     // ES2015
     Class,
