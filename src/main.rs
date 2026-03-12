@@ -28,7 +28,7 @@ struct Cli {
 }
 
 fn main() {
-    let data = LazyLock::force(&browser_compat_data::DATA);
+    LazyLock::force(&browser_compat_data::DATA);
     let args = Cli::parse();
 
     let source_map = Lrc::<SourceMap>::default();
@@ -72,22 +72,25 @@ fn main() {
         println!("{version} required because of:");
         for syntax in syntaxes {
             print!("- {syntax}");
-            if let Some(path) = syntax.browser_compat_path() {
-                let compat_data = data.compat_data(path);
-                let chrome_data = &compat_data.support.chrome;
-                let chrome_data = chrome_data.first().unwrap();
-                assert!(!chrome_data.partial_implementation);
-
-                let version = match &chrome_data.version_added {
-                    VersionAdded::Version(v) => v,
-                    VersionAdded::NotAdded(_) => panic!("unexpected not added"),
-                };
-
+            if let Some(version) = minimum_chrome_version(syntax) {
                 println!(": (Supported since Chrome {version})");
             } else {
                 println!();
             }
         }
+    }
+}
+
+fn minimum_chrome_version(syntax: Syntax) -> Option<&'static str> {
+    let path = syntax.browser_compat_path()?;
+    let compat_data = browser_compat_data::DATA.compat_data(path);
+    let chrome_data = &compat_data.support.chrome;
+    let chrome_data = chrome_data.first().unwrap();
+    assert!(!chrome_data.partial_implementation);
+
+    match &chrome_data.version_added {
+        VersionAdded::Version(v) => Some(v),
+        VersionAdded::NotAdded(_) => panic!("unexpected not added"),
     }
 }
 
@@ -641,45 +644,54 @@ mod test {
         );
     }
 
+    const ALL_SYNTAX: &[Syntax] = &[
+        Syntax::Class,
+        Syntax::ForOfLoop,
+        Syntax::ArrowFunction,
+        Syntax::Generator,
+        Syntax::Import,
+        Syntax::Export,
+        Syntax::Let,
+        Syntax::Const,
+        Syntax::TemplateLiteral,
+        Syntax::Exponentiation,
+        Syntax::AsyncFn,
+        Syntax::Await,
+        Syntax::AsyncGenerator,
+        Syntax::ForAwait,
+        Syntax::SpreadOperator,
+        Syntax::RestParameter,
+        Syntax::RegExpFlagS,
+        Syntax::CatchWithoutBinding,
+        Syntax::BigIntLiteral,
+        Syntax::NumericSeparator,
+        Syntax::OptionalChaining,
+        Syntax::NullishCoalescingOperator,
+        Syntax::DynamicImport,
+        Syntax::NullishCoalescingAssignment,
+        Syntax::LogicalAndAssignment,
+        Syntax::LogicalOrAssignment,
+        Syntax::ClassFieldDeclaration,
+        Syntax::PrivateField,
+        Syntax::StaticBlock,
+        Syntax::TopLevelAwait,
+        Syntax::RegExpFlagD,
+        Syntax::RegExpFlagV,
+        Syntax::RegExpInlineModifier,
+    ];
+
     #[test]
     fn all_syntax() {
         assert_eq!(
             syntax_required(include_str!("../test.js")),
-            BTreeSet::from_iter([
-                Syntax::Class,
-                Syntax::ForOfLoop,
-                Syntax::ArrowFunction,
-                Syntax::Generator,
-                Syntax::Import,
-                Syntax::Export,
-                Syntax::Let,
-                Syntax::Const,
-                Syntax::TemplateLiteral,
-                Syntax::Exponentiation,
-                Syntax::AsyncFn,
-                Syntax::Await,
-                Syntax::AsyncGenerator,
-                Syntax::ForAwait,
-                Syntax::SpreadOperator,
-                Syntax::RestParameter,
-                Syntax::RegExpFlagS,
-                Syntax::CatchWithoutBinding,
-                Syntax::BigIntLiteral,
-                Syntax::NumericSeparator,
-                Syntax::OptionalChaining,
-                Syntax::NullishCoalescingOperator,
-                Syntax::DynamicImport,
-                Syntax::NullishCoalescingAssignment,
-                Syntax::LogicalAndAssignment,
-                Syntax::LogicalOrAssignment,
-                Syntax::ClassFieldDeclaration,
-                Syntax::PrivateField,
-                Syntax::StaticBlock,
-                Syntax::TopLevelAwait,
-                Syntax::RegExpFlagD,
-                Syntax::RegExpFlagV,
-                Syntax::RegExpInlineModifier,
-            ])
+            ALL_SYNTAX.iter().copied().collect()
         );
+    }
+
+    #[test]
+    fn compat_data() {
+        for &syntax in ALL_SYNTAX {
+            _ = minimum_chrome_version(syntax);
+        }
     }
 }
