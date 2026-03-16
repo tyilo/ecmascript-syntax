@@ -68,20 +68,28 @@ fn main() {
             .insert(syntax);
     }
 
+    let mut max_version = None;
+
     for (version, syntaxes) in syntax_by_version {
         println!("{version} required because of:");
         for syntax in syntaxes {
             print!("- {syntax}");
             if let Some(version) = minimum_chrome_version(syntax) {
                 println!(": (Supported since Chrome {version})");
+                max_version = max_version.max(Some(version));
             } else {
                 println!();
             }
         }
     }
+
+    if let Some(max_version) = max_version {
+        println!();
+        println!("Minimum Chrome version required: {max_version}");
+    }
 }
 
-fn minimum_chrome_version(syntax: Syntax) -> Option<&'static str> {
+fn minimum_chrome_version(syntax: Syntax) -> Option<&'static browser_compat_data::Version> {
     let path = syntax.browser_compat_path()?;
     let compat_data = browser_compat_data::DATA.compat_data(path);
     let chrome_data = &compat_data.support.chrome;

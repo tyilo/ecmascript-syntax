@@ -1,5 +1,7 @@
-use std::{collections::HashMap, sync::LazyLock};
+use std::{cmp::Ordering, collections::HashMap, sync::LazyLock};
 
+use derive_more::Display;
+use itertools::{EitherOrBoth, Itertools};
 use serde::Deserialize;
 use serde_with::{OneOrMany, serde_as};
 
@@ -42,8 +44,43 @@ pub struct BrowserSupport {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum VersionAdded {
-    Version(String),
+    Version(Version),
     NotAdded(NotAdded),
+}
+
+#[derive(Debug, Display, Deserialize, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Version(String);
+
+impl Version {
+    fn components(&self) -> impl Iterator<Item = u64> {
+        let s = self.0.strip_prefix('≤').unwrap_or(&self.0);
+        s.split('.').map(|s| s.parse().unwrap())
+    }
+}
+
+impl Ord for Version {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        for c in self.components().zip_longest(other.components()) {
+            match c {
+                EitherOrBoth::Both(a, b) => {
+                    let v = a.cmp(&b);
+                    if v != Ordering::Equal {
+                        return v;
+                    }
+                }
+                EitherOrBoth::Left(_) => return Ordering::Greater,
+                EitherOrBoth::Right(_) => return Ordering::Less,
+            }
+        }
+        Ordering::Equal
+    }
+}
+
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug, Deserialize)]
