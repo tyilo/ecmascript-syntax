@@ -539,6 +539,14 @@ mod test {
     }
 
     #[test]
+    fn await_expr_in_async_arrow() {
+        assert_eq!(
+            syntax_required("async (a) => { await a; }"),
+            BTreeSet::from_iter([Syntax::ArrowFunction, Syntax::AsyncFn, Syntax::Await])
+        );
+    }
+
+    #[test]
     fn async_gen_decl() {
         assert_eq!(
             syntax_required("async function* f() {}"),
