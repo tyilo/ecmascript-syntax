@@ -3,16 +3,19 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Display,
+    fmt::Write,
     path::PathBuf,
     sync::LazyLock,
 };
 
+use annotate_snippets::{AnnotationKind, Snippet};
 use clap::Parser as ClapParser;
 use ecmascript_syntax::{
     browser_compat_data::{self, VersionAdded},
     syntax::{Syntax, Version},
     visitor::find_syntax_used,
 };
+use platform_cast::CastFrom;
 use swc_common::{
     SourceMap, Span,
     errors::{ColorConfig, Handler},
@@ -26,6 +29,41 @@ struct Cli {
     input: PathBuf,
     #[arg(long)]
     ast: bool,
+    #[arg(long)]
+    show_location: bool,
+    #[arg(long)]
+    show_source: bool,
+}
+
+fn print_annotated_span(source_map: &SourceMap, span: Span, title: &str) {
+    let file_lines = source_map.span_to_lines(span).unwrap();
+    let source = file_lines
+        .lines
+        .iter()
+        .map(|line| file_lines.file.get_line(line.line_index).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let first_line_index = file_lines.lines[0].line_index;
+    let (first_line_offset, _) = file_lines.file.line_bounds(first_line_index);
+
+    let report = &[annotate_snippets::Level::INFO.primary_title(title).element(
+        Snippet::source(&source)
+            .line_start(first_line_index + 1)
+            .path(file_lines.file.name.to_string())
+            .annotation(
+                AnnotationKind::Primary
+                    .span(
+                        usize::cast_from((span.lo - first_line_offset).0)
+                            ..usize::cast_from((span.hi - first_line_offset).0),
+                    )
+                    .label("first encountered here"),
+            ),
+    )];
+    let renderer = annotate_snippets::Renderer::styled()
+        .decor_style(annotate_snippets::renderer::DecorStyle::Unicode);
+    println!("{}", renderer.render(report));
+    println!();
 }
 
 fn format_span(source_map: &SourceMap, span: Span) -> impl Display {
@@ -81,14 +119,22 @@ fn main() {
     for (version, syntaxes) in syntax_by_version {
         println!("{version} required because of:");
         for (syntax, span) in syntaxes {
-            print!("- {syntax}");
+            let mut title = format!("{syntax}");
             if let Some(version) = minimum_chrome_version(syntax) {
-                println!(": (Supported since Chrome {version})");
+                write!(title, ": (Supported since Chrome {version})").unwrap();
                 max_version = max_version.max(Some(version));
-            } else {
-                println!();
             }
-            println!("  First encountered at {}", format_span(&source_map, span));
+            if args.show_source {
+                print_annotated_span(&source_map, span, &title);
+            } else {
+                println!("- {title}");
+                if args.show_location {
+                    println!(
+                        "    first encountered at {}",
+                        format_span(&source_map, span)
+                    );
+                }
+            }
         }
     }
 
