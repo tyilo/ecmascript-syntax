@@ -88,7 +88,7 @@ fn main() {
             } else {
                 println!();
             }
-            println!("  First encountered at {}", format_span(&source_map, span),);
+            println!("  First encountered at {}", format_span(&source_map, span));
         }
     }
 

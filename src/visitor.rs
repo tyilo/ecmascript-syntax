@@ -271,7 +271,11 @@ impl Visit for SyntaxVersionVisitor<'_> {
             },
         );
         let pattern = parser.parse().unwrap();
-        swc_ecma_regexp_visit::VisitWith::visit_with(&pattern, self);
+        let mut regex_visitor = RegexVisitor::new();
+        swc_ecma_regexp_visit::VisitWith::visit_with(&pattern, &mut regex_visitor);
+        if regex_visitor.found_inline_modifier {
+            self.register_syntax(node, Syntax::RegExpInlineModifier);
+        }
 
         for c in node.flags.chars() {
             let syntax = match c {
@@ -322,12 +326,24 @@ impl Visit for SyntaxVersionVisitor<'_> {
     }
 }
 
-impl swc_ecma_regexp_visit::Visit for SyntaxVersionVisitor<'_> {
+struct RegexVisitor {
+    found_inline_modifier: bool,
+}
+
+impl RegexVisitor {
+    fn new() -> Self {
+        Self {
+            found_inline_modifier: false,
+        }
+    }
+}
+
+impl swc_ecma_regexp_visit::Visit for RegexVisitor {
     fn visit_ignore_group(&mut self, node: &swc_ecma_regexp::ast::IgnoreGroup) {
         if let Some(modifiers) = &node.modifiers
             && !(modifiers.enabling.is_empty() && modifiers.disabling.is_empty())
         {
-            self.register_syntax(node, Syntax::RegExpInlineModifier);
+            self.found_inline_modifier = true;
         }
 
         swc_ecma_regexp_visit::VisitWith::visit_children_with(node, self);
