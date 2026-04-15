@@ -2,6 +2,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fmt::Display,
     path::PathBuf,
     sync::LazyLock,
 };
@@ -13,7 +14,7 @@ use ecmascript_syntax::{
     visitor::find_syntax_used,
 };
 use swc_common::{
-    SourceMap,
+    SourceMap, Span,
     errors::{ColorConfig, Handler},
     sync::Lrc,
 };
@@ -25,6 +26,13 @@ struct Cli {
     input: PathBuf,
     #[arg(long)]
     ast: bool,
+}
+
+fn format_span(source_map: &SourceMap, span: Span) -> impl Display {
+    std::fmt::from_fn(move |f| {
+        let lo = source_map.lookup_char_pos(span.lo);
+        write!(f, "{}:{}:{}", lo.file.name, lo.line, lo.col_display)
+    })
 }
 
 fn main() {
@@ -60,19 +68,19 @@ fn main() {
 
     let syntax_used = find_syntax_used(&source_map, &module);
 
-    let mut syntax_by_version: BTreeMap<Version, BTreeSet<Syntax>> = BTreeMap::new();
-    for syntax in syntax_used {
+    let mut syntax_by_version: BTreeMap<Version, BTreeSet<(Syntax, Span)>> = BTreeMap::new();
+    for (syntax, span) in syntax_used {
         syntax_by_version
             .entry(syntax.version_required())
             .or_default()
-            .insert(syntax);
+            .insert((syntax, span));
     }
 
     let mut max_version = None;
 
     for (version, syntaxes) in syntax_by_version {
         println!("{version} required because of:");
-        for syntax in syntaxes {
+        for (syntax, span) in syntaxes {
             print!("- {syntax}");
             if let Some(version) = minimum_chrome_version(syntax) {
                 println!(": (Supported since Chrome {version})");
@@ -80,6 +88,7 @@ fn main() {
             } else {
                 println!();
             }
+            println!("  First encountered at {}", format_span(&source_map, span),);
         }
     }
 
@@ -136,7 +145,7 @@ mod test {
 
         //dbg!(&module);
 
-        find_syntax_used(&source_map, &module)
+        find_syntax_used(&source_map, &module).into_keys().collect()
     }
 
     #[test]
