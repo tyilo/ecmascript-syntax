@@ -168,7 +168,11 @@ impl Visit for SyntaxVersionVisitor<'_> {
         if node.is_async {
             self.register_syntax(node, Syntax::AsyncFn);
         }
+
+        let already_inside = self.inside_fn;
+        self.inside_fn = true;
         node.visit_children_with(self);
+        self.inside_fn = already_inside;
     }
 
     fn visit_opt_chain_expr(&mut self, node: &OptChainExpr) {
